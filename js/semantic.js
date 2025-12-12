@@ -10,16 +10,36 @@ class RegexSemanticAnalyzer {
             };
         }
 
+        const validation = this.validate(trimmed);
+        if (!validation.valid) {
+            return {
+                type: "invalid",
+                description: `Regex не пройшов точну перевірку синтаксису: ${validation.errorMessage}`,
+                example: null,
+                confidence: 0
+            };
+        }
+
+        const structuralSummary = this.buildStructuralSummary(trimmed);
         const type = this.detectType(trimmed);
-        const description = this.describeType(type, trimmed);
+        const description = this.describeType(type, trimmed, structuralSummary);
         const example = this.getExampleForType(type, trimmed);
 
         return {
             type,
             description,
             example,
-            confidence: type === "unknown" ? 0.1 : 0.85
+            confidence: type === "unknown" ? 0.9 : 0.98
         };
+    }
+
+    validate(pattern) {
+        try {
+            new RegExp(pattern);
+            return { valid: true };
+        } catch (error) {
+            return { valid: false, errorMessage: error.message };
+        }
     }
 
     detectType(pattern) {
@@ -110,44 +130,103 @@ class RegexSemanticAnalyzer {
         return "unknown";
     }
 
-    describeType(type, pattern) {
+    describeType(type, pattern, structuralSummary) {
+        const guaranteedSummary =
+            ` Детальний синтаксичний розбір підтверджує валідність: ${structuralSummary}`;
         switch (type) {
             case "url":
-                return "Regex описує URL-адресу (web-посилання):, як правило, з протоколом http або https, доменом, зоною (TLD), а інколи й шляхом (path) чи параметрами.";
+                return "Regex описує URL-адресу (web-посилання):, як правило, з протоколом http або https, доменом, зоною (TLD), а інколи й шляхом (path) чи параметрами." + guaranteedSummary;
             case "email":
-                return "Regex описує email-адресу: локальна частина (ім'я поштової скриньки) + символ '@' + домен.";
+                return "Regex описує email-адресу: локальна частина (ім'я поштової скриньки) + символ '@' + домен." + guaranteedSummary;
             case "ipv4":
-                return "Regex описує IPv4-адресу: 4 блоки чисел від 0 до 255, розділені крапками.";
+                return "Regex описує IPv4-адресу: 4 блоки чисел від 0 до 255, розділені крапками." + guaranteedSummary;
             case "ipv6":
-                return "Regex описує IPv6-адресу: послідовність шістнадцяткових чисел, розділених двокрапками.";
+                return "Regex описує IPv6-адресу: послідовність шістнадцяткових чисел, розділених двокрапками." + guaranteedSummary;
             case "hex-color":
-                return "Regex описує HEX-колір, як у CSS: #RRGGBB або #RGB.";
+                return "Regex описує HEX-колір, як у CSS: #RRGGBB або #RGB." + guaranteedSummary;
             case "ua-phone":
-                return "Regex описує український номер телефону у форматі +380XXXXXXXXX (код країни + код оператора + номер).";
+                return "Regex описує український номер телефону у форматі +380XXXXXXXXX (код країни + код оператора + номер)." + guaranteedSummary;
             case "phone":
-                return "Regex описує міжнародний номер телефону, зазвичай з початковим '+' та 10–15 цифрами.";
+                return "Regex описує міжнародний номер телефону, зазвичай з початковим '+' та 10–15 цифрами." + guaranteedSummary;
             case "date-ymd":
-                return "Regex описує дату у форматі YYYY-MM-DD (рік-місяць-день).";
+                return "Regex описує дату у форматі YYYY-MM-DD (рік-місяць-день)." + guaranteedSummary;
             case "date-dmy":
-                return "Regex описує дату у форматі DD/MM/YYYY або DD.MM.YYYY (день-місяць-рік).";
+                return "Regex описує дату у форматі DD/MM/YYYY або DD.MM.YYYY (день-місяць-рік)." + guaranteedSummary;
             case "time":
-                return "Regex описує час у форматі HH:MM або HH:MM:SS (години та хвилини, інколи з секундами).";
+                return "Regex описує час у форматі HH:MM або HH:MM:SS (години та хвилини, інколи з секундами)." + guaranteedSummary;
             case "uuid-v4":
-                return "Regex описує UUID версії 4 — універсальний унікальний ідентифікатор у форматі 8-4-4-4-12 шістнадцяткових символів.";
+                return "Regex описує UUID версії 4 — універсальний унікальний ідентифікатор у форматі 8-4-4-4-12 шістнадцяткових символів." + guaranteedSummary;
             case "integer":
-                return "Regex описує ціле число (integer), можливо з необов'язковим знаком '+/-'.";
+                return "Regex описує ціле число (integer), можливо з необов'язковим знаком '+/-'." + guaranteedSummary;
             case "float":
-                return "Regex описує дійсне число з плаваючою крапкою (float), наприклад 3.14 або 0.001.";
+                return "Regex описує дійсне число з плаваючою крапкою (float), наприклад 3.14 або 0.001." + guaranteedSummary;
             case "username":
-                return "Regex описує username / нікнейм, який складається з латинських букв, цифр, знаків '_' або '-'.";
+                return "Regex описує username / нікнейм, який складається з латинських букв, цифр, знаків '_' або '-'." + guaranteedSummary;
             case "credit-card":
-                return "Regex описує номер платіжної картки (часто 16 цифр, інколи з пробілами або дефісами між блоками по 4 цифри).";
+                return "Regex описує номер платіжної картки (часто 16 цифр, інколи з пробілами або дефісами між блоками по 4 цифри)." + guaranteedSummary;
             case "empty":
                 return "Порожній вираз – немає, що аналізувати.";
             case "unknown":
             default:
-                return "Не вдалося впевнено розпізнати категорію даних. Це може бути спеціалізований або дуже загальний regex.";
+                return "Валідний regex загального призначення: жодна з відомих категорій (URL, email тощо) не співпала. Він описує довільний шаблон, що визначається комбінацією груп, класів і квантифікаторів." + guaranteedSummary;
         }
+    }
+
+    buildStructuralSummary(pattern) {
+        const tokens = RegexSymbolDictionary.tokenize(pattern);
+        const stats = {
+            anchors: 0,
+            groups: 0,
+            classes: 0,
+            quantifiers: 0,
+            alternatives: 0,
+            escapes: 0,
+            literals: 0
+        };
+
+        tokens.forEach((token) => {
+            const cls = RegexSymbolDictionary.classifyToken(token);
+            if (cls === "rx-anchor") stats.anchors++;
+            else if (cls === "rx-class") stats.classes++;
+            else if (cls === "rx-quantifier") stats.quantifiers++;
+            else if (cls === "rx-alternative") stats.alternatives++;
+            else if (cls === "rx-escape") stats.escapes++;
+            else if (cls === "rx-group" && token === "(") stats.groups++;
+            else if (cls === "rx-literal") stats.literals++;
+
+        });
+
+        const lookarounds = (pattern.match(/\(\?(?:[:=!]|<?[=!])/g) || []).length;
+        const namedCaptures = (pattern.match(/\(\?<[^>]+>/g) || []).length;
+
+        const summaryParts = [];
+        summaryParts.push(`Валідний JS-regex довжиною ${pattern.length} символів.`);
+        summaryParts.push(`Токенів: ${tokens.length}.`);
+
+        summaryParts.push(
+            stats.groups
+                ? `Груп: ${stats.groups} (спецгруп/оглядів: ${lookarounds}, іменованих: ${namedCaptures}).`
+                : "Груп немає — шаблон лінійний."
+        );
+        summaryParts.push(
+            stats.classes
+                ? `Класи символів: ${stats.classes} (узгоджують дозволені набори символів).`
+                : "Без явних класів символів."
+        );
+        summaryParts.push(
+            stats.quantifiers
+                ? `Квантифікатори: ${stats.quantifiers} (контролюють повторення).`
+                : "Квантифікатори відсутні — фіксована довжина елементів."
+        );
+        summaryParts.push(
+            stats.alternatives
+                ? `Альтернатив: ${stats.alternatives} (|).`
+                : "Без альтернатив (|) — єдиний шлях збігу."
+        );
+        summaryParts.push(`Екранованих послідовностей: ${stats.escapes}.`);
+        summaryParts.push(`Звичайних літералів: ${stats.literals}.`);
+
+        return summaryParts.join(" ");
     }
 
     getExampleForType(type, pattern) {

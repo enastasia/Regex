@@ -1,4 +1,10 @@
 class RegexFromExamplesGenerator {
+    constructor() {
+        this.europePhoneRules = (typeof window !== "undefined" && window.EUROPE_PHONE_RULES)
+            ? window.EUROPE_PHONE_RULES
+            : [];
+    }
+
     generateFromExamples(text) {
         const lines = text
             .split(/\r?\n/)
@@ -28,6 +34,18 @@ class RegexFromExamplesGenerator {
     // --------------------------------------------------
     generateForSingle(line) {
         const escaped = this.escapeRegexLiteral(line);
+
+        const phoneRule = this.detectEuropeanPhone(line);
+        if (phoneRule) {
+            return {
+                regex: phoneRule.sampleRegex,
+                explanation:
+                    `Вихідний рядок: "${line}"\n` +
+                    `Розпізнано: телефонний номер (${phoneRule.countryName}${phoneRule.flag ? " " + phoneRule.flag : ""}).\n` +
+                    `Країна: ${phoneRule.countryName}. Міжнародний код: ${phoneRule.callingCode}.\n` +
+                    `Regex: /${phoneRule.sampleRegex}/`
+            };
+        }
 
         // Типові введення
         if (/^\d+$/.test(line)) {
@@ -167,5 +185,14 @@ class RegexFromExamplesGenerator {
         return alternatives.length === 1
             ? alternatives[0]
             : `(?:${alternatives.join("|")})`;
+    }
+
+    detectEuropeanPhone(value) {
+        for (const rule of this.europePhoneRules) {
+            if (rule.valuePattern.test(value.replace(/\s+/g, " ").replace(/[-]/g, "-")) || rule.valuePattern.test(value.replace(/[\s-]/g, ""))) {
+                return rule;
+            }
+        }
+        return null;
     }
 }

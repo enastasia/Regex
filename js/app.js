@@ -12,6 +12,7 @@ class App {
         this.regexFromExamplesGenerator = new RegexFromExamplesGenerator();
 
         this.lastSemanticType = null;
+        this.lastSemanticMeta = null;
         this.lastPattern = "";
 
         this.dom = {
@@ -147,9 +148,10 @@ class App {
         // 1) Семантика
         const semantic = this.semanticAnalyzer.analyze(pattern);
         this.lastSemanticType = semantic.type;
+        this.lastSemanticMeta = semantic.meta;
 
         this.dom.semanticTypeTag.textContent =
-            "Тип: " + (semantic.type === "unknown" ? "невідомий / загальний" : semantic.type);
+            semantic.label || (semantic.type === "unknown" ? "Тип: невідомий / загальний" : `Тип: ${semantic.type}`);
         this.dom.semanticRegex.innerHTML =
             "/" + RegexSymbolDictionary.highlight(pattern) + "/";
 
@@ -195,10 +197,11 @@ class App {
         // Додатково: зробимо семантичний аналіз згенерованого regex
         const semantic = this.semanticAnalyzer.analyze(regex);
         this.lastSemanticType = semantic.type;
+        this.lastSemanticMeta = semantic.meta;
         this.lastPattern = regex;
 
         this.dom.semanticTypeTag.textContent =
-            "Тип: " + (semantic.type === "unknown" ? "невідомий / загальний" : semantic.type);
+            semantic.label || (semantic.type === "unknown" ? "Тип: невідомий / загальний" : `Тип: ${semantic.type}`);
         if (semantic.example) {
             this.dom.semanticExample.textContent = semantic.example;
         }
@@ -248,7 +251,7 @@ class App {
             return;
         }
         const type = this.lastSemanticType || "unknown";
-        const example = this.semanticAnalyzer.getExampleForType(type, this.lastPattern);
+        const example = this.semanticAnalyzer.getExampleForType(type, this.lastPattern, this.lastSemanticMeta || {});
         if (!example) {
             this.setErrorStatus("Для цього типу шаблону важко згенерувати надійний приклад автоматично.");
             return;
@@ -262,7 +265,9 @@ class App {
             const examples = [
                 "^https?:\\/\\/[\\w.-]+\\.[A-Za-z]{2,}(\\/\\S*)?$", // URL
                 "^[\\w.-]+@[\\w.-]+\\.[A-Za-z]{2,}$",             // Email
-                "^\\+380\\d{9}$",                                 // UA phone
+                "^\\+380\\s?\\d{2}\\s?\\d{3}\\s?\\d{2}\\s?\\d{2}$", // UA phone
+                "^\\+49\\s?(1[5-7]\\d|[2-9]\\d)\\s?\\d{3,8}$",        // DE phone
+                "^\\+33\\s?[1-9](\\s?\\d{2}){4}$",                        // FR phone
                 "^\\d{4}-\\d{2}-\\d{2}$",                         // Date YYYY-MM-DD
                 "^(?=.*\\d)(?=.*[A-Z]).{8,}$"                     // Strong password (умовно)
             ];
@@ -275,7 +280,10 @@ class App {
                 "user-01\nuser-12\nuser-99",
                 "2023-12-01\n2024-01-30\n2025-02-15",
                 "abc123\nxyz456\nqwe789",
-                "INV-2023-001\nINV-2023-102\nINV-2024-777"
+                "INV-2023-001\nINV-2023-102\nINV-2024-777",
+                "+380 50 123 45 67",
+                "+49 151 23456789",
+                "+33 6 12 34 56 78"
             ];
             const ex = exampleSets[Math.floor(Math.random() * exampleSets.length)];
             this.dom.mainInput.value = ex;
@@ -304,6 +312,7 @@ class App {
         this.fillSymbolsTable([]);
         this.lastPattern = "";
         this.lastSemanticType = null;
+        this.lastSemanticMeta = null;
     }
 
     setIdleStatus() {

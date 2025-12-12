@@ -1,12 +1,85 @@
+const EUROPE_PHONE_RULES = [
+    {
+        id: "phone-ua",
+        countryKey: "ua",
+        countryName: "Україна",
+        flag: "\uD83C\uDDFA\uD83C\uDDE6",
+        callingCode: "+380",
+        regexPattern: /^\^?\+?380\s?\d{2}\s?\d{3}\s?\d{2}\s?\d{2}\$?$/,
+        sampleRegex: "^\\+380\\s?\\d{2}\\s?\\d{3}\\s?\\d{2}\\s?\\d{2}$",
+        valuePattern: /^\+?380(?:[\s-]?\d){9}$/,
+        format: "код оператора + абонентський номер",
+        examples: [
+            "+380 50 123 45 67",
+            "+380671112233",
+            "+38093 123 45 67"
+        ]
+    },
+    {
+        id: "phone-de",
+        countryKey: "de",
+        countryName: "Німеччина",
+        flag: "\uD83C\uDDE9\uD83C\uDDEA",
+        callingCode: "+49",
+        regexPattern: /^\^?\+?49\s?(?:1[5-7]\d|[2-9]\d)\s?\d{3,8}\$?$/,
+        sampleRegex: "^\\+49\\s?(1[5-7]\\d|[2-9]\\d)\\s?\\d{3,8}$",
+        valuePattern: /^\+?49(?:[\s-]?\d){7,13}$/,
+        format: "код оператора (мобільний або міський) + абонентський номер",
+        examples: [
+            "+49 151 23456789",
+            "+49 30 1234567",
+            "+49176 9876543"
+        ]
+    },
+    {
+        id: "phone-fr",
+        countryKey: "fr",
+        countryName: "Франція",
+        flag: "\uD83C\uDDEB\uD83C\uDDF7",
+        callingCode: "+33",
+        regexPattern: /^\^?\+?33\s?[1-9](?:\s?\d{2}){4}\$?$/,
+        sampleRegex: "^\\+33\\s?[1-9](\\s?\\d{2}){4}$",
+        valuePattern: /^\+?33(?:[\s-]?\d){9}$/,
+        format: "перший індекс оператора + абонентський номер у блоках по 2 цифри",
+        examples: [
+            "+33 6 12 34 56 78",
+            "+33 1 23 45 67 89",
+            "+33698765432"
+        ]
+    },
+    {
+        id: "phone-eu",
+        countryKey: "eu",
+        countryName: "Європа (країна не визначена)",
+        flag: "\uD83C\uDDEA\uD83C\uDDFA",
+        callingCode: "+(2|3|4)…",
+        regexPattern: /^\^?\+?(?:2|3|4)\d{8,13}\$?$/,
+        sampleRegex: "^\\+(?:2|3|4)\\d{8,13}$",
+        valuePattern: /^\+(?:2|3|4)(?:[\s-]?\d){8,13}$/,
+        format: "універсальний міжнародний формат для європейських телефонних кодів",
+        examples: [
+            "+421 901 123 456",
+            "+34 612 34 56 78",
+            "+358401234567"
+        ]
+    }
+];
+
+if (typeof window !== "undefined") {
+    window.EUROPE_PHONE_RULES = EUROPE_PHONE_RULES;
+}
+
 class RegexSemanticAnalyzer {
     analyze(pattern) {
         const trimmed = pattern.trim();
         if (!trimmed) {
             return {
                 type: "empty",
+                label: "Тип: порожній",
                 description: "Порожній вираз – немає, що аналізувати.",
                 example: null,
-                confidence: 0
+                confidence: 0,
+                meta: {}
             };
         }
 
@@ -14,22 +87,29 @@ class RegexSemanticAnalyzer {
         if (!validation.valid) {
             return {
                 type: "invalid",
+                label: "Тип: помилка синтаксису",
                 description: `Regex не пройшов точну перевірку синтаксису: ${validation.errorMessage}`,
                 example: null,
-                confidence: 0
+                confidence: 0,
+                meta: {}
             };
         }
 
         const structuralSummary = this.buildStructuralSummary(trimmed);
-        const type = this.detectType(trimmed);
-        const description = this.describeType(type, trimmed, structuralSummary);
-        const example = this.getExampleForType(type, trimmed);
+        const detection = this.detectType(trimmed);
+        const typeId = typeof detection === "string" ? detection : detection.id;
+        const meta = typeof detection === "string" ? {} : detection;
+        const description = this.describeType(detection, trimmed, structuralSummary);
+        const example = this.getExampleForType(typeId, trimmed, meta);
+        const label = meta.label || this.getLabelForType(typeId, meta);
 
         return {
-            type,
+            type: typeId,
+            label,
             description,
             example,
-            confidence: type === "unknown" ? 0.9 : 0.98
+            confidence: typeId === "unknown" ? 0.9 : 0.98,
+            meta
         };
     }
 
@@ -43,97 +123,125 @@ class RegexSemanticAnalyzer {
     }
 
     detectType(pattern) {
+        const normalized = pattern.replace(/\\\\/g, "\\");
+        const corePattern = this.unwrapRegexDelimiters(normalized);
+
+        const euPhone = this.detectEuropeanPhone(corePattern);
+        if (euPhone) {
+            return euPhone;
+        }
+
         // URL (http/https)
-        if (/https?\??:\\?\/\\?\/|https?\?:\/\/|^https?\b/.test(pattern)) {
+        if (/https?\??:\\?\/\\?\/|https?\?:\/\/|^https?\b/.test(corePattern)) {
             return "url";
         }
 
         // Email
-        if (/@/.test(pattern) && /\\?@/.test(pattern) || /\[A-Za-z\]\{2,}/.test(pattern) || /@\[\\w.-]+/.test(pattern)) {
-            if (pattern.includes("@") || /@\[\\w.-]+/.test(pattern) || /\\@/.test(pattern)) {
+        if (/@/.test(corePattern) && /\\?@/.test(corePattern) || /\[A-Za-z\]\{2,}/.test(corePattern) || /@\[\\w.-]+/.test(corePattern)) {
+            if (corePattern.includes("@") || /@\[\\w.-]+/.test(corePattern) || /\\@/.test(corePattern)) {
                 return "email";
             }
         }
 
         // IPv4
-        if (/25[0-5]|2[0-4]\d|\d{1,3}\./.test(pattern) && pattern.includes(".")) {
-            if (/(\d{1,3}\.){3}\d{1,3}/.test(pattern)) {
+        if (/25[0-5]|2[0-4]\d|\d{1,3}\./.test(corePattern) && corePattern.includes(".")) {
+            if (/(\d{1,3}\.){3}\d{1,3}/.test(corePattern)) {
                 return "ipv4";
             }
         }
 
         // IPv6
-        if (pattern.toLowerCase().includes(":[0-9a-f]") || /[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}/.test(pattern)) {
-            if (pattern.includes(":") && /[0-9A-Fa-f]/.test(pattern)) {
+        if (corePattern.toLowerCase().includes(":[0-9a-f]") || /[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}/.test(corePattern)) {
+            if (corePattern.includes(":") && /[0-9A-Fa-f]/.test(corePattern)) {
                 return "ipv6";
             }
         }
 
         // HEX color
-        if (/#\\?[0-9A-Fa-f]\{6}|#\[[0-9A-Fa-f]\{3,6}/.test(pattern) || /#\[[0-9A-Fa-f]{3,6}]/.test(pattern)) {
+        if (/#\\?[0-9A-Fa-f]\{6}|#\[[0-9A-Fa-f]\{3,6}/.test(corePattern) || /#\[[0-9A-Fa-f]{3,6}]/.test(corePattern)) {
             return "hex-color";
         }
-        if (/^#?\\?[0-9A-Fa-f]{3,6}$/.test(pattern)) {
+        if (/^#?\\?[0-9A-Fa-f]{3,6}$/.test(corePattern)) {
             return "hex-color";
-        }
-
-        // Український телефон (+380...)
-        if (/\\\+?380\\d{9}|^\+?380\\d{9}|380\\d{9}/.test(pattern)) {
-            return "ua-phone";
         }
 
         // Телефон загальний (починається з +, містить від 10-15 цифр)
-        if (/\\\+?\d{10,15}|^\+?\d{10,15}/.test(pattern)) {
+        if (/\\\+?\d{10,15}|^\+?\d{10,15}/.test(corePattern)) {
             return "phone";
         }
 
         // Дата YYYY-MM-DD
-        if (/\\d{4}[-\/]\\d{2}[-\/]\\d{2}/.test(pattern)) {
+        if (/\\d{4}[-\/]\\d{2}[-\/]\\d{2}/.test(corePattern)) {
             return "date-ymd";
         }
 
         // Дата DD/MM/YYYY або DD.MM.YYYY
-        if (/\\d{2}[.\/-]\\d{2}[.\/-]\\d{4}/.test(pattern)) {
+        if (/\\d{2}[.\/-]\\d{2}[.\/-]\\d{4}/.test(corePattern)) {
             return "date-dmy";
         }
 
         // Час HH:MM(:SS)?
-        if (/\\d{2}:\\d{2}(:\\d{2})?/.test(pattern)) {
+        if (/\\d{2}:\\d{2}(:\\d{2})?/.test(corePattern)) {
             return "time";
         }
 
         // UUID v4 (дуже типова структура)
-        if (/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/.test(pattern)) {
+        if (/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}/.test(corePattern)) {
             return "uuid-v4";
         }
 
         // Integer
-        if (/^\^?\\d\+?\$?$/.test(pattern) || /^\^?[-+]?\d+\$?$/.test(pattern)) {
+        if (/^\^?\\d\+?\$?$/.test(corePattern) || /^\^?[-+]?\d+\$?$/.test(corePattern)) {
             return "integer";
         }
 
         // Float
-        if (/\\d+\\.\\d+/.test(pattern)) {
+        if (/\\d+\\.\\d+/.test(corePattern)) {
             return "float";
         }
 
         // Username / slug-like
-        if (/\\w+\+?|[a-zA-Z0-9_-]\+/.test(pattern) && /username|user/i.test(pattern)) {
+        if (/\\w+\+?|[a-zA-Z0-9_-]\+/.test(corePattern) && /username|user/i.test(corePattern)) {
             return "username";
         }
 
         // Credit Card (16 цифр, групи по 4)
-        if (/(\d{4}[- ]?){3}\d{4}/.test(pattern) || /\\d{16}/.test(pattern)) {
+        if (/(\d{4}[- ]?){3}\d{4}/.test(corePattern) || /\\d{16}/.test(corePattern)) {
             return "credit-card";
         }
 
         return "unknown";
     }
 
+    unwrapRegexDelimiters(pattern) {
+        const match = pattern.match(/^\/(.*)\/[gimsuy]*$/);
+        return match ? match[1] : pattern;
+    }
+
+    detectEuropeanPhone(pattern) {
+        for (const rule of EUROPE_PHONE_RULES) {
+            if (rule.regexPattern.test(pattern)) {
+                return {
+                    ...rule,
+                    id: rule.id === "phone-eu" ? "phone-eu" : rule.id,
+                    label: `Телефонний номер — ${rule.countryName} ${rule.flag}`
+                };
+            }
+        }
+        return null;
+    }
+
     describeType(type, pattern, structuralSummary) {
         const guaranteedSummary =
             ` Детальний синтаксичний розбір підтверджує валідність: ${structuralSummary}`;
-        switch (type) {
+        const typeId = typeof type === "string" ? type : type.id;
+        const meta = typeof type === "string" ? {} : type;
+
+        if (typeId === "phone-eu" || typeId === "phone-ua" || typeId === "phone-de" || typeId === "phone-fr") {
+            return this.describeEuropeanPhone(meta, guaranteedSummary);
+        }
+
+        switch (typeId) {
             case "url":
                 return "Regex описує URL-адресу (web-посилання):, як правило, з протоколом http або https, доменом, зоною (TLD), а інколи й шляхом (path) чи параметрами." + guaranteedSummary;
             case "email":
@@ -144,8 +252,6 @@ class RegexSemanticAnalyzer {
                 return "Regex описує IPv6-адресу: послідовність шістнадцяткових чисел, розділених двокрапками." + guaranteedSummary;
             case "hex-color":
                 return "Regex описує HEX-колір, як у CSS: #RRGGBB або #RGB." + guaranteedSummary;
-            case "ua-phone":
-                return "Regex описує український номер телефону у форматі +380XXXXXXXXX (код країни + код оператора + номер)." + guaranteedSummary;
             case "phone":
                 return "Regex описує міжнародний номер телефону, зазвичай з початковим '+' та 10–15 цифрами." + guaranteedSummary;
             case "date-ymd":
@@ -170,6 +276,60 @@ class RegexSemanticAnalyzer {
             default:
                 return "Валідний regex загального призначення: жодна з відомих категорій (URL, email тощо) не співпала. Він описує довільний шаблон, що визначається комбінацією груп, класів і квантифікаторів." + guaranteedSummary;
         }
+    }
+
+    getLabelForType(typeId, meta = {}) {
+        const countryLabel = meta.countryName ? `Телефонний номер — ${meta.countryName} ${meta.flag || ""}` : null;
+        switch (typeId) {
+            case "phone-ua":
+            case "phone-de":
+            case "phone-fr":
+            case "phone-eu":
+                return countryLabel || "Тип: телефонний номер";
+            case "url":
+                return "Тип: URL";
+            case "email":
+                return "Тип: Email";
+            case "ipv4":
+                return "Тип: IPv4";
+            case "ipv6":
+                return "Тип: IPv6";
+            case "hex-color":
+                return "Тип: HEX-колір";
+            case "phone":
+                return "Тип: телефонний номер";
+            case "date-ymd":
+            case "date-dmy":
+                return "Тип: дата";
+            case "time":
+                return "Тип: час";
+            case "uuid-v4":
+                return "Тип: UUID";
+            case "integer":
+                return "Тип: ціле число";
+            case "float":
+                return "Тип: дійсне число";
+            case "username":
+                return "Тип: ім'я користувача";
+            case "credit-card":
+                return "Тип: платіжна картка";
+            default:
+                return "Тип: невідомий / загальний";
+        }
+    }
+
+    describeEuropeanPhone(meta, guaranteedSummary) {
+        const country = meta.countryName || "Європа";
+        const flag = meta.flag ? ` ${meta.flag}` : "";
+        const callingCode = meta.callingCode ? `Міжнародний код: ${meta.callingCode}.` : "";
+        const format = meta.format ? `Формат: ${meta.format}.` : "";
+        return [
+            `Тип: Телефонний номер`,
+            `Країна: ${country}${flag}.`,
+            callingCode,
+            format,
+            guaranteedSummary
+        ].filter(Boolean).join(" ");
     }
 
     buildStructuralSummary(pattern) {
@@ -229,8 +389,19 @@ class RegexSemanticAnalyzer {
         return summaryParts.join(" ");
     }
 
-    getExampleForType(type, pattern) {
+    getExampleForType(type, pattern, meta = {}) {
         switch (type) {
+            case "phone-ua":
+            case "phone-de":
+            case "phone-fr":
+            case "phone-eu": {
+                const rule = EUROPE_PHONE_RULES.find(r => r.id === type) || meta;
+                const pool = rule && rule.examples
+                    ? rule.examples
+                    : [];
+                if (pool.length) return this.randomFrom(pool);
+                break;
+            }
             case "url":
                 return this.randomFrom([
                     "https://example.com",
@@ -261,12 +432,6 @@ class RegexSemanticAnalyzer {
                     "#1e293b",
                     "#09f",
                     "#22c55e"
-                ]);
-            case "ua-phone":
-                return this.randomFrom([
-                    "+380501234567",
-                    "+380671112233",
-                    "+380931234567"
                 ]);
             case "phone":
                 return this.randomFrom([

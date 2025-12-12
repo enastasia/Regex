@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Regex Helper – Семантика, пояснення, приклади</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="app-inner">
+        <header>
+            <div class="title-group">
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    Regex Assistant · пояснення & генерація
+                </div>
+                <h1>
+                    <span>Розбери</span>
+                    <span class="highlight">будь-який Regex</span>
+                </h1>
+                <p>
+                    Введи регулярний вираз, щоб отримати:
+                    <strong>семантику</strong> (що він описує),
+                    <strong>структурний розбір</strong> та
+                    <strong>пояснення символів</strong>. Або навпаки – введи приклади рядків,
+                    і ми згенеруємо regex.
+                </p>
+            </div>
+            <div>
+                <div class="mode-toggle" id="modeToggle">
+                    <button data-mode="explain" class="active">
+                        <span class="icon">🔍</span>
+                        Пояснити regex
+                    </button>
+                    <button data-mode="generate">
+                        <span class="icon">✨</span>
+                        Згенерувати regex
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- LEFT: INPUT PANEL -->
+            <section class="panel" id="inputPanel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <div class="panel-title-bar"></div>
+                        <span id="inputTitle">Ввід регулярного виразу</span>
+                    </div>
+                    <span class="hint" id="inputHint">
+                        Наприклад: <code class="inline">^https?:\/\/[\\w.-]+\.[A-Za-z]{2,}(\/\S*)?$</code>
+                    </span>
+                </div>
+
+                <div class="input-row">
+                    <label id="inputLabel" for="mainInput">Regex</label>
+                    <span class="hint-inline" id="inputSubhint">
+                        Введи будь-який регулярний вираз (JS-синтаксис).
+                    </span>
+                </div>
+
+                <textarea id="mainInput" placeholder="Введи сюди regex…"></textarea>
+
+                <div class="chips" id="chipsContainer">
+                    <div class="chip"><strong>^</strong> – початок рядка</div>
+                    <div class="chip"><strong>$</strong> – кінець рядка</div>
+                    <div class="chip"><strong>\d</strong> – цифра</div>
+                    <div class="chip"><strong>\w</strong> – буква/цифра/«_»</div>
+                    <div class="chip"><strong>[a-z]</strong> – діапазон</div>
+                    <div class="chip"><strong>(...)</strong> – група</div>
+                    <div class="chip"><strong>?</strong>, <strong>*</strong>, <strong>+</strong>, <strong>{m,n}</strong> – кількість повторень</div>
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn-main" id="actionButton">
+                        <span class="icon">🧠</span>
+                        Пояснити regex
+                    </button>
+                    <div class="btn-group">
+                        <button class="btn-ghost" id="fillExampleButton">
+                            <span class="icon">🎲</span>
+                            Приклад regex / прикладів
+                        </button>
+                    </div>
+                </div>
+
+                <div class="small-note">
+                    <span class="pill-help">
+                        <span class="icon">💡</span>
+                        Головна мета — навчити читати й розуміти regex на реальних кейсах.
+                    </span>
+                </div>
+            </section>
+
+            <!-- RIGHT: OUTPUT PANELS -->
+            <section class="panel">
+                <!-- SEMANTIC BLOCK -->
+                <div class="subpanel">
+                    <div class="subpanel-header">
+                        <h2>🧠 Семантичне пояснення</h2>
+                        <span class="subpanel-tag" id="semanticTypeTag">Тип: невідомо</span>
+                    </div>
+                    <div class="semantic-body">
+                        <div class="semantic-row">
+                            <div class="semantic-label">Розпізнаний вираз:</div>
+                            <div class="semantic-regex" id="semanticRegex">
+                                Введи regex ліворуч, щоб побачити пояснення.
+                            </div>
+                        </div>
+                        <div class="semantic-row">
+                            <div class="semantic-label">Що це таке:</div>
+                            <div class="semantic-description" id="semanticDescription">
+                                Тут буде людське пояснення того, які дані описує цей регулярний вираз
+                                (URL, email, номер телефону, дата, і т.д.).
+                            </div>
+                        </div>
+                        <div class="semantic-row semantic-row-example">
+                            <div class="semantic-label">Приклад значення:</div>
+                            <div class="semantic-example">
+                                <code class="inline" id="semanticExample">—</code>
+                                <button class="btn-ghost small" id="randomExampleButton">
+                                    <span class="icon">🎲</span> Згенерувати приклад
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STRUCTURE BLOCK -->
+                <div class="subpanel">
+                    <div class="subpanel-header">
+                        <h2>🔍 Структура regex</h2>
+                    </div>
+                    <pre class="output" id="structureOutput">
+Тут буде покроковий розбір: групи, класи символів, квантифікатори, lookahead'и…
+                    </pre>
+                </div>
+
+                <!-- SYMBOLS BLOCK -->
+                <div class="subpanel">
+                    <div class="subpanel-header">
+                        <h2>🧩 Символи та токени</h2>
+                    </div>
+                    <div class="symbols-table-wrapper">
+                        <table class="symbols-table" id="symbolsTable">
+                            <thead>
+                            <tr>
+                                <th>Токен</th>
+                                <th>Пояснення</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr>
+                                <td colspan="2" class="empty-cell">
+                                    Тут з'явиться табличка з поясненням кожного токена regex.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- STATUS -->
+                <div class="status-row">
+                    <div class="status-text" id="statusText">
+                        Очікую на дані…
+                    </div>
+                    <div class="tag" id="statusTag">
+                        <span class="tag-dot"></span>
+                        <span id="statusTagText">пасивний режим</span>
+                    </div>
+                </div>
+
+                <div class="small-note">
+                    <span>Режим: <code class="inline" id="modeLabel">explain</code></span>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+
+<script src="js/semantic.js"></script>
+<script src="js/symbols.js"></script>
+<script src="js/examples.js"></script>
+<script src="js/explain.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
